@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -17,12 +17,13 @@ from migration_tool.legacy import LegacyBase, LegacySaleRow, LegacySource, Legac
 from migration_tool.runtime import Runtime
 from migration_tool.state import StateStore
 
-DT = datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+DT = datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 # --------------------------------------------------------------------------- #
 # Legacy DB (SQLite, in-memory)
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture
 def legacy_engine():
@@ -41,13 +42,19 @@ def seed_legacy(legacy_engine):
     def _seed(users: list[dict], sales: list[dict]) -> None:
         with Session(legacy_engine) as s:
             for u in users:
-                s.add(LegacyUserRow(id=u["id"], name=u["name"],
-                                    created_at=u.get("created_at", DT)))
+                s.add(LegacyUserRow(id=u["id"], name=u["name"], created_at=u.get("created_at", DT)))
             for sale in sales:
-                s.add(LegacySaleRow(
-                    id=sale["id"], user_id=sale["user_id"], item_name=sale["item_name"],
-                    quantity=sale["quantity"], created_at=sale.get("created_at", DT)))
+                s.add(
+                    LegacySaleRow(
+                        id=sale["id"],
+                        user_id=sale["user_id"],
+                        item_name=sale["item_name"],
+                        quantity=sale["quantity"],
+                        created_at=sale.get("created_at", DT),
+                    )
+                )
             s.commit()
+
     return _seed
 
 
@@ -60,6 +67,7 @@ def legacy_source(legacy_engine):
 # Fake services
 # --------------------------------------------------------------------------- #
 
+
 class FakeService:
     """Minimal in-memory stand-in for the User or Sales service."""
 
@@ -67,8 +75,8 @@ class FakeService:
         self.entity = entity  # "user" | "sale"
         self.store: dict[int, dict] = {}
         self.call_log = call_log
-        self.transient_left: dict[str, int] = {}   # path-prefix -> remaining 503s
-        self.hard_500: set[str] = set()            # exact paths that always 500
+        self.transient_left: dict[str, int] = {}  # path-prefix -> remaining 503s
+        self.hard_500: set[str] = set()  # exact paths that always 500
         self.import_path = f"/internal/{entity}s/import"
         self.collection = f"/{entity}s"
 
@@ -121,8 +129,14 @@ class FakeService:
             return httpx.Response(
                 200, json={outcome_field: "unchanged", self._record_key(): existing}
             )
-        return httpx.Response(409, json={"detail": "import conflict", "sale_id": rid,
-                                         "conflicts": {"incoming": incoming, "existing": existing}})
+        return httpx.Response(
+            409,
+            json={
+                "detail": "import conflict",
+                "sale_id": rid,
+                "conflicts": {"incoming": incoming, "existing": existing},
+            },
+        )
 
     def _get(self, rid: int) -> httpx.Response:
         rec = self.store.get(rid)
@@ -140,8 +154,8 @@ class FakeService:
 def _dt(v) -> datetime:
     d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
     if d.tzinfo is None:  # services treat naive timestamps as UTC
-        d = d.replace(tzinfo=timezone.utc)
-    return d.astimezone(timezone.utc)
+        d = d.replace(tzinfo=UTC)
+    return d.astimezone(UTC)
 
 
 @pytest.fixture
@@ -162,6 +176,7 @@ def fake_sale(call_log):
 # --------------------------------------------------------------------------- #
 # Runtime wired to fakes
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture
 def state_store(tmp_path):
@@ -197,12 +212,18 @@ def make_runtime(legacy_source, state_store, fake_user, fake_sale, tmp_path):
             allow_destructive_rollback=overrides.get("allow_destructive_rollback", False),
         )
         user_http = RetryingClient(
-            "http://user.test", transport=httpx.MockTransport(fake_user.handler),
-            max_retries=settings.http_max_retries, backoff_base=0.0, sleep=lambda _s: None,
+            "http://user.test",
+            transport=httpx.MockTransport(fake_user.handler),
+            max_retries=settings.http_max_retries,
+            backoff_base=0.0,
+            sleep=lambda _s: None,
         )
         sales_http = RetryingClient(
-            "http://sales.test", transport=httpx.MockTransport(fake_sale.handler),
-            max_retries=settings.http_max_retries, backoff_base=0.0, sleep=lambda _s: None,
+            "http://sales.test",
+            transport=httpx.MockTransport(fake_sale.handler),
+            max_retries=settings.http_max_retries,
+            backoff_base=0.0,
+            sleep=lambda _s: None,
         )
         return Runtime(
             settings=settings,
@@ -213,4 +234,5 @@ def make_runtime(legacy_source, state_store, fake_user, fake_sale, tmp_path):
             _user_http=user_http,
             _sales_http=sales_http,
         )
+
     return _make

@@ -27,9 +27,13 @@ class SalesServiceClient:
         body = payload.model_dump(mode="json")
         r = self._c.request("POST", "/internal/sales/import", json=body)
         if r.status_code == 201:
-            return ImportResult(action=ImportAction.CREATED, http_status=201, record=r.json().get("sale"))
+            return ImportResult(
+                action=ImportAction.CREATED, http_status=201, record=r.json().get("sale")
+            )
         if r.status_code == 200:
-            return ImportResult(action=ImportAction.UNCHANGED, http_status=200, record=r.json().get("sale"))
+            return ImportResult(
+                action=ImportAction.UNCHANGED, http_status=200, record=r.json().get("sale")
+            )
         if r.status_code == 409:
             return ImportResult(action=ImportAction.CONFLICT, http_status=409, detail=_safe_json(r))
         if r.status_code == 422:

@@ -19,6 +19,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2",
+    "pytest-cov>=7.1",
+    "ruff==0.16.8",
+    "mypy==2.3.1",
 ]
 
 [project.scripts]
@@ -40,3 +43,29 @@ markers = [
     "slow: takes more than a few seconds",
     "failure: chaos/failure-injection scenario",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI/Typer declare dependencies and parameters as default-argument calls.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "typer.Option", "typer.Argument"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["migration_tool"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.coverage.run]
+source = ["migration_tool"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

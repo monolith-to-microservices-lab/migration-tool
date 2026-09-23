@@ -8,7 +8,7 @@ prove the destination row is still what the migration produced before deleting.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -22,13 +22,20 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 
 from .models import EntityType, ImportAction, ItemStatus, RunStatus
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Base(DeclarativeBase):
@@ -48,7 +55,7 @@ class MigrationRun(Base):
     stats_json: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    items: Mapped[list["MigrationItem"]] = relationship(
+    items: Mapped[list[MigrationItem]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
 
@@ -84,7 +91,7 @@ class StateStore:
         Base.metadata.create_all(engine)
 
     @classmethod
-    def from_url(cls, url: str) -> "StateStore":
+    def from_url(cls, url: str) -> StateStore:
         kwargs: dict = {"future": True}
         if url.startswith("sqlite"):
             from sqlalchemy.pool import StaticPool
@@ -123,9 +130,7 @@ class StateStore:
 
     def latest_run(self) -> MigrationRun | None:
         with self._sf() as s:
-            return s.scalars(
-                select(MigrationRun).order_by(MigrationRun.started_at.desc())
-            ).first()
+            return s.scalars(select(MigrationRun).order_by(MigrationRun.started_at.desc())).first()
 
     def list_runs(self) -> list[MigrationRun]:
         with self._sf() as s:

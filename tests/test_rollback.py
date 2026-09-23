@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from migration_tool.migration import run_snapshot
-from migration_tool.models import EntityType, ImportAction, RunStatus
+from migration_tool.models import RunStatus
 from migration_tool.rollback import RollbackRefused, run_rollback
 
 USERS = [{"id": 1, "name": "Joao"}, {"id": 2, "name": "Maria"}, {"id": 3, "name": "Thiago"}]
@@ -45,10 +45,12 @@ def test_rollback_deletes_sales_before_users(make_runtime, seed_legacy, call_log
     report = run_rollback(rt, run_id, confirm=True, dry_run=False)
 
     assert report.status == RunStatus.ROLLED_BACK
-    sale_deletes = [i for i, (svc, m, p) in enumerate(call_log)
-                    if m == "DELETE" and p.startswith("/sales/")]
-    user_deletes = [i for i, (svc, m, p) in enumerate(call_log)
-                    if m == "DELETE" and p.startswith("/users/")]
+    sale_deletes = [
+        i for i, (svc, m, p) in enumerate(call_log) if m == "DELETE" and p.startswith("/sales/")
+    ]
+    user_deletes = [
+        i for i, (svc, m, p) in enumerate(call_log) if m == "DELETE" and p.startswith("/users/")
+    ]
     assert sale_deletes and user_deletes
     assert max(sale_deletes) < min(user_deletes)
 
@@ -57,6 +59,7 @@ def test_rollback_only_removes_created_items(make_runtime, seed_legacy, fake_use
     seed_legacy(USERS, SALES)
     # user 2 pre-exists identically -> "unchanged", must survive rollback
     from tests.conftest import DT
+
     fake_user.store[2] = {"id": 2, "name": "Maria", "created_at": DT.isoformat()}
     rt = make_runtime(allow_destructive_rollback=True)
     run_snapshot(rt)
@@ -65,8 +68,8 @@ def test_rollback_only_removes_created_items(make_runtime, seed_legacy, fake_use
     report = run_rollback(rt, run_id, confirm=True, dry_run=False)
 
     assert report.status == RunStatus.ROLLED_BACK
-    assert 2 in fake_user.store            # unchanged -> kept
-    assert 1 not in fake_user.store         # created -> removed
+    assert 2 in fake_user.store  # unchanged -> kept
+    assert 1 not in fake_user.store  # created -> removed
     assert 3 not in fake_user.store
     assert report.users_deleted == 2
 
@@ -88,7 +91,6 @@ def test_rollback_refuses_drifted_record(make_runtime, seed_legacy, fake_user):
 
 def test_rollback_dry_run_writes_nothing(make_runtime, seed_legacy, call_log):
     rt, run_id = _completed_run(make_runtime, seed_legacy)
-    users_before = dict(rt.state.get_run(run_id).__dict__)
     call_log.clear()
 
     report = run_rollback(rt, run_id, confirm=False, dry_run=True)

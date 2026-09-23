@@ -12,7 +12,8 @@ exact payload that was sent, so `rollback` can act precisely.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, TypeGuard
 
 from .http import HttpError
 from .logging_config import get_logger
@@ -32,6 +33,9 @@ from .report import build_envelope, write_files
 from .runtime import Runtime
 from .validation import check_referential_integrity, validate_sales, validate_users
 
+if TYPE_CHECKING:
+    from .state import MigrationItem
+
 logger = get_logger("migration_tool.migration")
 
 # A FAILED run is intentionally resumable - imports are idempotent, so `resume`
@@ -50,7 +54,7 @@ class SnapshotError(RuntimeError):
 
 
 def new_run_id(now: datetime | None = None) -> str:
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return f"mig_{now:%Y%m%d_%H%M%S}_{secrets.token_hex(2)}"
 
 
@@ -58,9 +62,10 @@ def new_run_id(now: datetime | None = None) -> str:
 # Dry run
 # --------------------------------------------------------------------------- #
 
+
 def run_dry(rt: Runtime) -> RunReport:
     """Read-only preflight: counts + basic problem detection. No writes, no state."""
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     stats = MigrationStats()
     reasons: list[str] = []
 
@@ -86,19 +91,22 @@ def run_dry(rt: Runtime) -> RunReport:
         status=status,
         dry_run=True,
         started_at=started,
-        finished_at=datetime.now(timezone.utc),
+        finished_at=datetime.now(UTC),
         legacy_source=rt.settings.masked_legacy_url(),
         stats=stats,
         reasons=reasons,
     )
-    logger.info("snapshot.dry_run", extra={"users": stats.users_found, "sales": stats.sales_found,
-                                           "result": status.value})
+    logger.info(
+        "snapshot.dry_run",
+        extra={"users": stats.users_found, "sales": stats.sales_found, "result": status.value},
+    )
     return report
 
 
 # --------------------------------------------------------------------------- #
 # Snapshot / resume
 # --------------------------------------------------------------------------- #
+
 
 def run_snapshot(rt: Runtime, *, resume_run_id: str | None = None) -> RunReport:
     if resume_run_id is not None:
@@ -133,7 +141,8 @@ def run_snapshot(rt: Runtime, *, resume_run_id: str | None = None) -> RunReport:
         _persist(rt, run_id, RunStatus.USERS_MIGRATED, report)
         if stats.users_conflict or stats.users_failed:
             report.reasons.append(
-                f"{stats.users_conflict} conflicting user(s), {stats.users_failed} failed user import(s)"
+                f"{stats.users_conflict} conflicting user(s), "
+                f"{stats.users_failed} failed user import(s)"
             )
             return _finalize(rt, run_id, RunStatus.FAILED, report)
 
@@ -152,7 +161,8 @@ def run_snapshot(rt: Runtime, *, resume_run_id: str | None = None) -> RunReport:
         _persist(rt, run_id, RunStatus.SALES_MIGRATED, report)
         if stats.sales_conflict or stats.sales_failed:
             report.reasons.append(
-                f"{stats.sales_conflict} conflicting sale(s), {stats.sales_failed} failed sale import(s)"
+                f"{stats.sales_conflict} conflicting sale(s), "
+                f"{stats.sales_failed} failed sale import(s)"
             )
             return _finalize(rt, run_id, RunStatus.FAILED, report)
 
@@ -190,7 +200,8 @@ def run_snapshot(rt: Runtime, *, resume_run_id: str | None = None) -> RunReport:
 # Phase implementations
 # --------------------------------------------------------------------------- #
 
-def _already_done(item) -> bool:
+
+def _already_done(item: MigrationItem | None) -> TypeGuard[MigrationItem]:
     return (
         item is not None
         and item.status in (ItemStatus.IMPORTED.value, ItemStatus.VALIDATED.value)
@@ -214,28 +225,52 @@ def _migrate_users(rt: Runtime, run_id: str, stats: MigrationStats) -> None:
             stats.add_import(EntityType.USER, ImportAction.FAILED)
             stats.http_failures += 1
             rt.state.upsert_item(
-                run_id=run_id, entity=EntityType.USER, legacy_id=legacy.id,
-                destination="user-service", action=ImportAction.FAILED,
-                status=ItemStatus.FAILED, error=str(exc),
-                payload_hash=payload_hash(body), payload_json=canonical_json(body),
+                run_id=run_id,
+                entity=EntityType.USER,
+                legacy_id=legacy.id,
+                destination="user-service",
+                action=ImportAction.FAILED,
+                status=ItemStatus.FAILED,
+                error=str(exc),
+                payload_hash=payload_hash(body),
+                payload_json=canonical_json(body),
             )
-            logger.warning("migration.item", extra={
-                "run_id": run_id, "entity": "user", "legacy_id": legacy.id,
-                "operation": "import", "result": "failed", "error": str(exc)})
+            logger.warning(
+                "migration.item",
+                extra={
+                    "run_id": run_id,
+                    "entity": "user",
+                    "legacy_id": legacy.id,
+                    "operation": "import",
+                    "result": "failed",
+                    "error": str(exc),
+                },
+            )
             continue
 
         stats.add_import(EntityType.USER, result.action)
         ok = result.action in (ImportAction.CREATED, ImportAction.UNCHANGED)
         rt.state.upsert_item(
-            run_id=run_id, entity=EntityType.USER, legacy_id=legacy.id,
-            destination="user-service", action=result.action,
+            run_id=run_id,
+            entity=EntityType.USER,
+            legacy_id=legacy.id,
+            destination="user-service",
+            action=result.action,
             status=ItemStatus.IMPORTED if ok else ItemStatus.FAILED,
             error=None if ok else canonical_json(result.detail or {}),
-            payload_hash=payload_hash(body), payload_json=canonical_json(body),
+            payload_hash=payload_hash(body),
+            payload_json=canonical_json(body),
         )
-        logger.info("migration.item", extra={
-            "run_id": run_id, "entity": "user", "legacy_id": legacy.id,
-            "operation": "import", "result": result.action.value})
+        logger.info(
+            "migration.item",
+            extra={
+                "run_id": run_id,
+                "entity": "user",
+                "legacy_id": legacy.id,
+                "operation": "import",
+                "result": result.action.value,
+            },
+        )
 
 
 def _migrate_sales(rt: Runtime, run_id: str, stats: MigrationStats) -> None:
@@ -247,8 +282,11 @@ def _migrate_sales(rt: Runtime, run_id: str, stats: MigrationStats) -> None:
             continue
 
         payload = SaleImportPayload(
-            id=legacy.id, user_id=legacy.user_id, item_name=legacy.item_name,
-            quantity=legacy.quantity, created_at=legacy.created_at,
+            id=legacy.id,
+            user_id=legacy.user_id,
+            item_name=legacy.item_name,
+            quantity=legacy.quantity,
+            created_at=legacy.created_at,
         )
         body = payload.model_dump(mode="json")
         try:
@@ -257,33 +295,58 @@ def _migrate_sales(rt: Runtime, run_id: str, stats: MigrationStats) -> None:
             stats.add_import(EntityType.SALE, ImportAction.FAILED)
             stats.http_failures += 1
             rt.state.upsert_item(
-                run_id=run_id, entity=EntityType.SALE, legacy_id=legacy.id,
-                destination="sales-service", action=ImportAction.FAILED,
-                status=ItemStatus.FAILED, error=str(exc),
-                payload_hash=payload_hash(body), payload_json=canonical_json(body),
+                run_id=run_id,
+                entity=EntityType.SALE,
+                legacy_id=legacy.id,
+                destination="sales-service",
+                action=ImportAction.FAILED,
+                status=ItemStatus.FAILED,
+                error=str(exc),
+                payload_hash=payload_hash(body),
+                payload_json=canonical_json(body),
             )
-            logger.warning("migration.item", extra={
-                "run_id": run_id, "entity": "sale", "legacy_id": legacy.id,
-                "operation": "import", "result": "failed", "error": str(exc)})
+            logger.warning(
+                "migration.item",
+                extra={
+                    "run_id": run_id,
+                    "entity": "sale",
+                    "legacy_id": legacy.id,
+                    "operation": "import",
+                    "result": "failed",
+                    "error": str(exc),
+                },
+            )
             continue
 
         stats.add_import(EntityType.SALE, result.action)
         ok = result.action in (ImportAction.CREATED, ImportAction.UNCHANGED)
         rt.state.upsert_item(
-            run_id=run_id, entity=EntityType.SALE, legacy_id=legacy.id,
-            destination="sales-service", action=result.action,
+            run_id=run_id,
+            entity=EntityType.SALE,
+            legacy_id=legacy.id,
+            destination="sales-service",
+            action=result.action,
             status=ItemStatus.IMPORTED if ok else ItemStatus.FAILED,
             error=None if ok else canonical_json(result.detail or {}),
-            payload_hash=payload_hash(body), payload_json=canonical_json(body),
+            payload_hash=payload_hash(body),
+            payload_json=canonical_json(body),
         )
-        logger.info("migration.item", extra={
-            "run_id": run_id, "entity": "sale", "legacy_id": legacy.id,
-            "operation": "import", "result": result.action.value})
+        logger.info(
+            "migration.item",
+            extra={
+                "run_id": run_id,
+                "entity": "sale",
+                "legacy_id": legacy.id,
+                "operation": "import",
+                "result": result.action.value,
+            },
+        )
 
 
 # --------------------------------------------------------------------------- #
 # Persistence helpers
 # --------------------------------------------------------------------------- #
+
 
 def _persist(rt: Runtime, run_id: str, status: RunStatus, report: RunReport) -> None:
     report.status = status
@@ -294,7 +357,7 @@ def _finalize(
     rt: Runtime, run_id: str, status: RunStatus, report: RunReport, *, error: str | None = None
 ) -> RunReport:
     report.status = status
-    report.finished_at = datetime.now(timezone.utc)
+    report.finished_at = datetime.now(UTC)
     rt.state.update_run(
         run_id, status=status, stats=build_envelope(report), finished=True, error=error
     )

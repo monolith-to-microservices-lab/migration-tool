@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from migration_tool.migration import run_snapshot
-from migration_tool.models import EntityType, ImportAction, ItemStatus, RunStatus
+from migration_tool.models import EntityType, ImportAction, RunStatus
 from migration_tool.state import MigrationItem
 
 USERS = [
@@ -49,12 +47,10 @@ def test_users_run_before_sales(make_runtime, seed_legacy, call_log):
     run_snapshot(make_runtime())
 
     first_sale_write = next(
-        i for i, (svc, m, p) in enumerate(call_log)
-        if p == "/internal/sales/import" and m == "POST"
+        i for i, (svc, m, p) in enumerate(call_log) if p == "/internal/sales/import" and m == "POST"
     )
     last_user_write = max(
-        i for i, (svc, m, p) in enumerate(call_log)
-        if p == "/internal/users/import" and m == "POST"
+        i for i, (svc, m, p) in enumerate(call_log) if p == "/internal/users/import" and m == "POST"
     )
     assert last_user_write < first_sale_write
 
@@ -62,8 +58,11 @@ def test_users_run_before_sales(make_runtime, seed_legacy, call_log):
 def test_created_belongs_to_run_unchanged_does_not(make_runtime, seed_legacy, fake_user):
     seed_legacy(USERS, [])
     # user 2 already exists in the service, identical -> will be "unchanged"
-    fake_user.store[2] = {"id": 2, "name": "Maria",
-                          "created_at": datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc).isoformat()}
+    fake_user.store[2] = {
+        "id": 2,
+        "name": "Maria",
+        "created_at": datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC).isoformat(),
+    }
     rt = make_runtime()
     run_snapshot(rt)
 
@@ -86,8 +85,9 @@ def test_partial_batch_failure_does_not_lose_prior_successes(make_runtime, seed_
     still be recorded as CREATED - a single bad item must not roll back or
     block the rest of the batch/phase.
     """
-    import httpx as _httpx
     import json as _json
+
+    import httpx as _httpx
 
     seed_legacy(USERS, [])  # 3 users -> two batches of size 2
 

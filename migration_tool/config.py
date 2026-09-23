@@ -17,9 +17,7 @@ class Settings(BaseSettings):
     )
 
     # --- Legacy (business data source, READ ONLY) ---------------------------
-    legacy_database_url: str = (
-        "postgresql+psycopg://postgres:postgres@localhost:5432/monolith"
-    )
+    legacy_database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/monolith"
 
     # --- New services (HTTP only) -----------------------------------------
     user_service_url: str = "http://localhost:8001"

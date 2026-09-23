@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -33,10 +33,10 @@ class EntityType(StrEnum):
 
 
 class ImportAction(StrEnum):
-    CREATED = "created"      # this run inserted the row -> owned by this run
+    CREATED = "created"  # this run inserted the row -> owned by this run
     UNCHANGED = "unchanged"  # row already existed identically -> NOT owned
-    CONFLICT = "conflict"    # id exists with different data (HTTP 409)
-    FAILED = "failed"        # transport / server error after retries
+    CONFLICT = "conflict"  # id exists with different data (HTTP 409)
+    FAILED = "failed"  # transport / server error after retries
 
 
 class ItemStatus(StrEnum):
@@ -51,6 +51,7 @@ class ItemStatus(StrEnum):
 # --------------------------------------------------------------------------- #
 # Legacy rows
 # --------------------------------------------------------------------------- #
+
 
 class LegacyUser(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -71,6 +72,7 @@ class LegacySale(BaseModel):
 # --------------------------------------------------------------------------- #
 # Import payloads (exactly what we send to the services)
 # --------------------------------------------------------------------------- #
+
 
 class UserImportPayload(BaseModel):
     id: int
@@ -97,6 +99,7 @@ class ImportResult(BaseModel):
 # Validation output
 # --------------------------------------------------------------------------- #
 
+
 class Divergence(BaseModel):
     entity: EntityType
     legacy_id: int
@@ -115,10 +118,11 @@ class OrphanSale(BaseModel):
 # Helpers
 # --------------------------------------------------------------------------- #
 
+
 def to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def datetimes_equal(a: datetime, b: datetime) -> bool:

@@ -12,7 +12,7 @@ Commands
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import typer
 
@@ -25,7 +25,9 @@ from .rollback import RollbackRefused, run_rollback
 from .runtime import build_runtime
 from .validation import check_referential_integrity, validate_sales, validate_users
 
-app = typer.Typer(add_completion=False, help="Legacy monolith -> microservices migration coordinator.")
+app = typer.Typer(
+    add_completion=False, help="Legacy monolith -> microservices migration coordinator."
+)
 logger = get_logger("migration_tool.cli")
 
 
@@ -77,7 +79,9 @@ def resume(run_id: str = typer.Option(..., "--run-id", help="Run to continue."))
 
 @app.command()
 def validate(
-    run_id: str = typer.Option(None, "--run-id", help="Optional: also mark items of this run validated."),
+    run_id: str = typer.Option(
+        None, "--run-id", help="Optional: also mark items of this run validated."
+    ),
 ):
     """Reconcile legacy vs. services (Users, Sales, logical Sales -> User)."""
     settings = _boot()
@@ -88,7 +92,7 @@ def validate(
         report = RunReport(
             run_id=run_id or "(validate)",
             status=RunStatus.STARTED,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             legacy_source=settings.masked_legacy_url(),
             stats=stats,
         )
@@ -98,7 +102,7 @@ def validate(
         report.divergences = d1 + d2
         report.orphan_sales = orphans
         report.reasons = r1 + r2 + r3
-        report.finished_at = datetime.now(timezone.utc)
+        report.finished_at = datetime.now(UTC)
         report.status = (
             RunStatus.VALIDATED
             if not (report.divergences or report.orphan_sales or report.reasons)
@@ -191,7 +195,8 @@ def _print_rollback(report) -> None:
             f"  Sales: {report.would_delete_sales}",
             f"  Users: {report.would_delete_users}",
             "",
-            f"Already absent - Sales: {report.sales_already_absent}  Users: {report.users_already_absent}",
+            f"Already absent - Sales: {report.sales_already_absent}  "
+            f"Users: {report.users_already_absent}",
             f"Conflicts: {report.conflicts}",
         ]
     else:

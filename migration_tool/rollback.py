@@ -47,8 +47,7 @@ def _parse_dt(value):
 
 def _matches_snapshot(entity: EntityType, stored: dict, remote: dict) -> tuple[bool, str]:
     fields = (
-        ["id", "name"] if entity is EntityType.USER
-        else ["id", "user_id", "item_name", "quantity"]
+        ["id", "name"] if entity is EntityType.USER else ["id", "user_id", "item_name", "quantity"]
     )
     for f in fields:
         if str(stored.get(f)) != str(remote.get(f)):
@@ -107,9 +106,7 @@ def run_rollback(
         return report
 
     # --- Phase B: Users --------------------------------------------------
-    user_items = rt.state.items_for_run(
-        run_id, entity=EntityType.USER, action=ImportAction.CREATED
-    )
+    user_items = rt.state.items_for_run(run_id, entity=EntityType.USER, action=ImportAction.CREATED)
     _process(rt, EntityType.USER, user_items, report, dry_run)
 
     unresolved = report.conflicts + report.failures
@@ -123,8 +120,10 @@ def run_rollback(
         report.status = RunStatus.ROLLED_BACK
         rt.state.update_run(run_id, status=RunStatus.ROLLED_BACK, finished=True)
 
-    logger.info("rollback.finish", extra={"run_id": run_id, "result": report.status.value,
-                                          "dry_run": dry_run})
+    logger.info(
+        "rollback.finish",
+        extra={"run_id": run_id, "result": report.status.value, "dry_run": dry_run},
+    )
     return report
 
 
@@ -160,8 +159,10 @@ def _process(
         if not matches:
             _record(report, entity, legacy_id, "conflict", f"ROLLBACK CONFLICT - {why}")
             _set_status(rt, item, ItemStatus.ROLLBACK_CONFLICT, dry_run, why)
-            logger.warning("rollback.conflict", extra={
-                "entity": entity.value, "legacy_id": legacy_id, "reason": why})
+            logger.warning(
+                "rollback.conflict",
+                extra={"entity": entity.value, "legacy_id": legacy_id, "reason": why},
+            )
             continue
 
         if dry_run:
@@ -191,12 +192,21 @@ def _process(
             report.sales_deleted += 1
         else:
             report.users_deleted += 1
-        logger.info("rollback.item", extra={
-            "run_id": report.run_id, "entity": entity.value, "legacy_id": legacy_id,
-            "operation": "delete", "result": "deleted"})
+        logger.info(
+            "rollback.item",
+            extra={
+                "run_id": report.run_id,
+                "entity": entity.value,
+                "legacy_id": legacy_id,
+                "operation": "delete",
+                "result": "deleted",
+            },
+        )
 
 
-def _record(report: RollbackReport, entity: EntityType, legacy_id: int, outcome: str, detail: str) -> None:
+def _record(
+    report: RollbackReport, entity: EntityType, legacy_id: int, outcome: str, detail: str
+) -> None:
     report.items.append(
         RollbackItemResult(entity=entity, legacy_id=legacy_id, outcome=outcome, detail=detail)
     )
@@ -213,7 +223,9 @@ def _bump_absent(report: RollbackReport, entity: EntityType) -> None:
         report.users_already_absent += 1
 
 
-def _set_status(rt: Runtime, item, status: ItemStatus, dry_run: bool, error: str | None = None) -> None:
+def _set_status(
+    rt: Runtime, item, status: ItemStatus, dry_run: bool, error: str | None = None
+) -> None:
     if dry_run:
         return
     rt.state.set_item_status(item.id, status, error=error)

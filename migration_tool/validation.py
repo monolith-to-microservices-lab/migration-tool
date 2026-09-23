@@ -67,16 +67,26 @@ def validate_users(rt: Runtime, run_id: str | None, stats) -> tuple[list[Diverge
             continue
         if remote is None:
             divergences.append(
-                Divergence(entity=EntityType.USER, legacy_id=legacy.id, field="__missing__",
-                           legacy_value="present", destination_value="absent")
+                Divergence(
+                    entity=EntityType.USER,
+                    legacy_id=legacy.id,
+                    field="__missing__",
+                    legacy_value="present",
+                    destination_value="absent",
+                )
             )
             continue
         found += 1
         diffs = _cmp_user(legacy, remote)
         for field, lv, dv in diffs:
             divergences.append(
-                Divergence(entity=EntityType.USER, legacy_id=legacy.id, field=field,
-                           legacy_value=lv, destination_value=dv)
+                Divergence(
+                    entity=EntityType.USER,
+                    legacy_id=legacy.id,
+                    field=field,
+                    legacy_value=lv,
+                    destination_value=dv,
+                )
             )
         if not diffs and run_id is not None:
             _mark_validated(rt, run_id, EntityType.USER, legacy.id)
@@ -85,8 +95,10 @@ def validate_users(rt: Runtime, run_id: str | None, stats) -> tuple[list[Diverge
         reasons.append(f"user count mismatch: legacy={legacy_count} reachable_in_service={found}")
     if stats is not None:
         stats.users_validated = found - len({d.legacy_id for d in divergences})
-    logger.info("validate.users", extra={"legacy": legacy_count, "found": found,
-                                         "divergences": len(divergences)})
+    logger.info(
+        "validate.users",
+        extra={"legacy": legacy_count, "found": found, "divergences": len(divergences)},
+    )
     return divergences, reasons
 
 
@@ -104,16 +116,26 @@ def validate_sales(rt: Runtime, run_id: str | None, stats) -> tuple[list[Diverge
             continue
         if remote is None:
             divergences.append(
-                Divergence(entity=EntityType.SALE, legacy_id=legacy.id, field="__missing__",
-                           legacy_value="present", destination_value="absent")
+                Divergence(
+                    entity=EntityType.SALE,
+                    legacy_id=legacy.id,
+                    field="__missing__",
+                    legacy_value="present",
+                    destination_value="absent",
+                )
             )
             continue
         found += 1
         diffs = _cmp_sale(legacy, remote)
         for field, lv, dv in diffs:
             divergences.append(
-                Divergence(entity=EntityType.SALE, legacy_id=legacy.id, field=field,
-                           legacy_value=lv, destination_value=dv)
+                Divergence(
+                    entity=EntityType.SALE,
+                    legacy_id=legacy.id,
+                    field=field,
+                    legacy_value=lv,
+                    destination_value=dv,
+                )
             )
         if not diffs and run_id is not None:
             _mark_validated(rt, run_id, EntityType.SALE, legacy.id)
@@ -122,8 +144,10 @@ def validate_sales(rt: Runtime, run_id: str | None, stats) -> tuple[list[Diverge
         reasons.append(f"sale count mismatch: legacy={legacy_count} reachable_in_service={found}")
     if stats is not None:
         stats.sales_validated = found - len({d.legacy_id for d in divergences})
-    logger.info("validate.sales", extra={"legacy": legacy_count, "found": found,
-                                         "divergences": len(divergences)})
+    logger.info(
+        "validate.sales",
+        extra={"legacy": legacy_count, "found": found, "divergences": len(divergences)},
+    )
     return divergences, reasons
 
 
@@ -152,12 +176,17 @@ def check_referential_integrity(rt: Runtime, stats) -> tuple[list[OrphanSale], l
     if stats is not None:
         stats.checked_sales_refs = checked
         stats.orphan_sales = len(orphans)
-    logger.info("validate.referential", extra={"checked": checked, "orphans": len(orphans),
-                                               "missing_users": len(missing_users)})
+    logger.info(
+        "validate.referential",
+        extra={"checked": checked, "orphans": len(orphans), "missing_users": len(missing_users)},
+    )
     return orphans, reasons
 
 
 def _mark_validated(rt: Runtime, run_id: str, entity: EntityType, legacy_id: int) -> None:
     item = rt.state.get_item(run_id, entity, legacy_id)
-    if item is not None and item.action in (ImportAction.CREATED.value, ImportAction.UNCHANGED.value):
+    if item is not None and item.action in (
+        ImportAction.CREATED.value,
+        ImportAction.UNCHANGED.value,
+    ):
         rt.state.set_item_status(item.id, ItemStatus.VALIDATED)

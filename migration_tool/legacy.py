@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, Integer, String, create_engine, func, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from .models import LegacySale, LegacyUser
 
@@ -55,7 +55,7 @@ class LegacySource:
         self.batch_size = batch_size
 
     @classmethod
-    def from_url(cls, url: str, batch_size: int = 100) -> "LegacySource":
+    def from_url(cls, url: str, batch_size: int = 100) -> LegacySource:
         return cls(build_engine(url), batch_size=batch_size)
 
     def ping(self) -> None:
@@ -80,9 +80,7 @@ class LegacySource:
 
     def _iter(self, row_cls, model_cls):
         with self._session_factory() as session:  # type: Session
-            stmt = select(row_cls).order_by(row_cls.id).execution_options(
-                yield_per=self.batch_size
-            )
+            stmt = select(row_cls).order_by(row_cls.id).execution_options(yield_per=self.batch_size)
             for row in session.scalars(stmt):
                 yield model_cls.model_validate(row)
 
@@ -105,9 +103,7 @@ class LegacySource:
 
     def distinct_sale_user_ids(self) -> list[int]:
         with self._session_factory() as s:
-            return sorted(
-                int(x) for x in s.scalars(select(LegacySaleRow.user_id).distinct())
-            )
+            return sorted(int(x) for x in s.scalars(select(LegacySaleRow.user_id).distinct()))
 
     def legacy_orphan_sales(self) -> list[tuple[int, int]]:
         """Sales whose user_id has no matching legacy user (should be empty)."""

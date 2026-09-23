@@ -25,7 +25,7 @@ class Runtime:
         self._user_http.close()
         self._sales_http.close()
 
-    def __enter__(self) -> "Runtime":
+    def __enter__(self) -> Runtime:
         return self
 
     def __exit__(self, *exc) -> None:

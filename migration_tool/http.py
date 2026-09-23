@@ -57,7 +57,7 @@ class RetryingClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "RetryingClient":
+    def __enter__(self) -> RetryingClient:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -76,8 +76,11 @@ class RetryingClient:
                 logger.warning(
                     "http.attempt",
                     extra={
-                        "method": method, "path": path, "attempt": attempt,
-                        "result": "transport_error", "error": str(exc),
+                        "method": method,
+                        "path": path,
+                        "attempt": attempt,
+                        "result": "transport_error",
+                        "error": str(exc),
                         "duration_ms": round((time.perf_counter() - started) * 1000, 1),
                     },
                 )
@@ -91,8 +94,11 @@ class RetryingClient:
                 logger.warning(
                     "http.attempt",
                     extra={
-                        "method": method, "path": path, "attempt": attempt,
-                        "result": "retryable_status", "status": response.status_code,
+                        "method": method,
+                        "path": path,
+                        "attempt": attempt,
+                        "result": "retryable_status",
+                        "status": response.status_code,
                         "duration_ms": duration_ms,
                     },
                 )
@@ -102,8 +108,11 @@ class RetryingClient:
             logger.info(
                 "http.attempt",
                 extra={
-                    "method": method, "path": path, "attempt": attempt,
-                    "result": "response", "status": response.status_code,
+                    "method": method,
+                    "path": path,
+                    "attempt": attempt,
+                    "result": "response",
+                    "status": response.status_code,
                     "duration_ms": duration_ms,
                 },
             )

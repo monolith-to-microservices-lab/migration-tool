@@ -12,8 +12,6 @@ NOTE: it calls the real import + delete endpoints. Point it at a lab environment
 
 from __future__ import annotations
 
-import os
-
 import httpx
 import pytest
 

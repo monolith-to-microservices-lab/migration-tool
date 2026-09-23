@@ -66,8 +66,10 @@ def render_text(report: RunReport) -> str:
             if d.field == "__missing__":
                 add(f"  {d.entity} {d.legacy_id}: not found in destination service")
             else:
-                add(f"  {d.entity} {d.legacy_id}.{d.field}: legacy={d.legacy_value!r} "
-                    f"dest={d.destination_value!r}")
+                add(
+                    f"  {d.entity} {d.legacy_id}.{d.field}: legacy={d.legacy_value!r} "
+                    f"dest={d.destination_value!r}"
+                )
         if len(report.divergences) > 50:
             add(f"  ... and {len(report.divergences) - 50} more")
         add("")
@@ -84,7 +86,9 @@ def render_text(report: RunReport) -> str:
     add("RESULT")
     add("")
     add(f"  {report.status.value}")
-    reasons = report.reasons or ([_COMPLETED_REASON] if report.status == RunStatus.COMPLETED else [])
+    reasons = report.reasons or (
+        [_COMPLETED_REASON] if report.status == RunStatus.COMPLETED else []
+    )
     if reasons:
         add("")
         add("  Reasons:")

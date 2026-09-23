@@ -10,8 +10,11 @@ from migration_tool.http import HttpError, RetryingClient
 
 def _client(handler, **kw):
     return RetryingClient(
-        "http://svc.test", transport=httpx.MockTransport(handler),
-        backoff_base=0.0, sleep=lambda _s: None, **kw
+        "http://svc.test",
+        transport=httpx.MockTransport(handler),
+        backoff_base=0.0,
+        sleep=lambda _s: None,
+        **kw,
     )
 
 
