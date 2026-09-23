@@ -1,0 +1,106 @@
+# CI - every PR to main and every push to main. No deploy, no cloud credentials.
+#
+#   Lint -> Type Check -> Unit Tests -> Build
+#
+# Unit Tests: legacy DB = in-memory SQLite, services = fake HTTP transports.
+# tests/integration (the "live" suite) needs the whole lab running and is
+# excluded by default (pyproject addopts); it belongs to a full-lab run.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - name: ruff check
+        run: ruff check --output-format=github .
+      - name: ruff format --check
+        run: ruff format --check .
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: mypy
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - name: pytest
+        run: >
+          pytest --maxfail=10 -o addopts="--ignore=tests/integration"
+          --cov --cov-report=term --cov-report=xml:coverage-unit.xml
+          --junitxml=junit-unit.xml
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "Unit coverage: $(coverage report --format=total)%" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: unit-test-reports
+          path: |
+            junit-unit.xml
+            coverage-unit.xml
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build wheel + sdist
+        run: |
+          pip install build==1.6.1
+          python -m build
+      - name: Install the wheel in a clean venv and run the CLI
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          /tmp/clean/bin/migration-tool --help

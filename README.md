@@ -431,3 +431,18 @@ the confirmation gate, and dry-run making no writes.
 
 An optional integration suite (`tests/integration/`, deselected by default)
 exercises the real services when they are running locally.
+
+## CI
+
+Every pull request to `main` (and every push to `main`):
+
+| Workflow | Job | What it proves |
+|---|---|---|
+| `ci.yml` | **Lint** | `ruff check`, `ruff format --check` |
+| | **Type Check** | `mypy` |
+| | **Unit Tests** | full default suite (SQLite legacy DB, fake HTTP services) + coverage + JUnit |
+| | **Build** | wheel + sdist, installed in a clean venv, `migration-tool --help` |
+| `security.yml` | **Security** | Gitleaks (full history), Bandit (`migration_tool/`), pip-audit. Also weekly. |
+
+`tests/integration` (the live suite) needs the whole lab and stays opt-in; it is a
+candidate for the full E2E run in `migration-e2e-tests`. Coverage baseline: 74%.

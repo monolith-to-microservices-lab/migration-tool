@@ -1,0 +1,60 @@
+# Security - one job, one clear responsibility per tool (no overlap):
+#
+#   Secret scan      gitleaks   full git history, findings redacted
+#   SAST             bandit     application code (tests excluded)
+#   Dependencies     pip-audit  declared runtime dependencies of this project
+#
+# Also runs weekly: new CVEs appear without any code change.
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # secret scan needs the whole history
+
+      - name: Secret scan (gitleaks, full history, redacted)
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo --entrypoint sh ghcr.io/gitleaks/gitleaks:v8.30.1 -c \
+            "git config --global --add safe.directory /repo && gitleaks git . --redact --no-banner --exit-code 1" \
+            2>&1 | tee gitleaks.log
+          # Guard against a silent pass: 0 commits scanned means gitleaks could not read the repo.
+          grep -Eq "[1-9][0-9]* commits scanned" gitleaks.log
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: SAST (bandit)
+        run: |
+          pip install bandit==1.9.4
+          bandit -r migration_tool
+
+      - name: Dependency scan (pip-audit)
+        # pip-audit reports every known vulnerability (it has no severity data);
+        # exceptions must be explicit: --ignore-vuln <ID>, with the reason in a comment here.
+        run: |
+          pip install pip-audit==2.10.0
+          pip-audit --progress-spinner off .
